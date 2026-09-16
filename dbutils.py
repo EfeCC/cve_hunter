@@ -318,3 +318,19 @@ def insert_ai_finding(cursor, slug, path, start, end, lines,
         (slug, path, check_id, start, end, lines, verdict, confidence,
          vuln_class, auth_context, exploitability, notes),
     )
+
+
+def upsert_plugin_basic(cursor, slug, version, active_installs=0, download_link=""):
+    """Tek eklenti testinde PluginData satirini basitce ekler/gunceller
+    (tarih parse etmeden). PluginResults FK'si icin gerekli."""
+    cursor.execute(
+        """
+        INSERT INTO PluginData (slug, version, active_installs, download_link)
+        VALUES (%s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+            version=VALUES(version),
+            active_installs=VALUES(active_installs),
+            download_link=VALUES(download_link)
+        """,
+        (slug, version, int(active_installs or 0), download_link or ""),
+    )
