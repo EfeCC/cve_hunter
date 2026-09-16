@@ -259,3 +259,62 @@ def get_finding_by_id(cursor, result_id):
         return None
     cols = [c[0] for c in cursor.description]
     return dict(zip(cols, row))
+
+
+# ---------------------------------------------------------------------------
+# Cok-motorlu tarama + AI-kesif bulgulari icin ek semalar/sorgular
+# ---------------------------------------------------------------------------
+
+def ensure_engine_column(cursor):
+    """PluginResults'a 'engine' kolonu ekler (semgrep|psalm|progpilot|ai-discovery)."""
+    cursor.execute(
+        """
+        SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'PluginResults'
+          AND COLUMN_NAME = 'engine'
+        """
+    )
+    if not cursor.fetchall():
+        cursor.execute(
+            "ALTER TABLE PluginResults ADD COLUMN engine VARCHAR(24) DEFAULT 'semgrep'"
+        )
+
+
+def insert_finding(cursor, slug, path, check_id, start, end, lines, engine):
+    """Herhangi bir statik motorun normalize edilmis bulgusunu ekler (dedup'li)."""
+    # Ayni (slug, path, check_id, start, engine) varsa tekrar ekleme
+    cursor.execute(
+        """
+        SELECT id FROM PluginResults
+        WHERE slug=%s AND file_path=%s AND check_id=%s AND start_line=%s AND engine=%s
+        """,
+        (slug, path, check_id, start, engine),
+    )
+    if cursor.fetchone():
+        return
+    cursor.execute(
+        """
+        INSERT INTO PluginResults
+            (slug, file_path, check_id, start_line, end_line, vuln_lines, engine)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """,
+        (slug, path, check_id, start, end, lines, engine),
+    )
+
+
+def insert_ai_finding(cursor, slug, path, start, end, lines,
+                      verdict, confidence, vuln_class, auth_context,
+                      exploitability, notes, check_id="ai-discovery"):
+    """AI-kesif bulgusu: statik motor isaretlemese de bulunan, triyaj alanlari
+    onceden dolu kayit."""
+    cursor.execute(
+        """
+        INSERT INTO PluginResults
+            (slug, file_path, check_id, start_line, end_line, vuln_lines, engine,
+             triage_verdict, confidence, vuln_class, auth_context, exploitability,
+             triage_notes, triaged_at)
+        VALUES (%s,%s,%s,%s,%s,%s,'ai-discovery',%s,%s,%s,%s,%s,%s,NOW())
+        """,
+        (slug, path, check_id, start, end, lines, verdict, confidence,
+         vuln_class, auth_context, exploitability, notes),
+    )

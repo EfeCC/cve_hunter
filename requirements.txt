@@ -1,5 +1,6 @@
 mysql-connector-python
 tqdm
-semgrep
 requests
+semgrep
+pyyaml
 anthropic>=1.0.0

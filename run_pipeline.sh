@@ -1,22 +1,33 @@
 #!/usr/bin/env bash
 # Uctan uca boru hatti (Linux / WSL / Docker ortaminda calistir).
-# 1) indir + custom kurallarla Semgrep  2) AI triyaj  3) oncelik kuyrugu
+# indir -> cok-motorlu statik tarama -> AI kesif -> AI triyaj -> oncelik kuyrugu
 set -euo pipefail
 cd "$(dirname "$0")"
 
 DL_DIR="${DL_DIR:-.}"
 LIMIT="${LIMIT:-}"
 
-echo "[1/3] Eklentiler indiriliyor + Semgrep (custom kurallar) calistiriliyor..."
-python wordpress-plugin-audit.py --download --audit \
-  --download-dir "$DL_DIR" --config ./rules/wp --create-schema
+echo "[1/5] Eklentiler indiriliyor..."
+python wordpress-plugin-audit.py --download --download-dir "$DL_DIR" --create-schema
 
-echo "[2/3] AI triyaj..."
+echo "[2/5] Cok-motorlu statik tarama (Semgrep + varsa Psalm/progpilot)..."
+python multiscan.py --download-dir "$DL_DIR" --config ./rules/wp
+
+echo "[3/5] AI kesif (saldiri yuzeyi - statikten bagimsiz)..."
+python discover.py --plugins-root "$DL_DIR" ${LIMIT:+--limit-plugins "$LIMIT"}
+
+echo "[4/5] AI triyaj (statik bulgular)..."
 python triage.py --plugins-root "$DL_DIR" ${LIMIT:+--limit "$LIMIT"}
 
-echo "[3/3] Oncelik kuyrugu:"
+echo "[5/5] Oncelik kuyrugu:"
 python triage.py --report
 
-echo
-echo "Sirada: verify/ ile bir bulguyu localde dogrula, sonra:"
-echo "  python report.py --id <id> --plugins-root \"$DL_DIR\" --ai"
+cat <<TIP
+
+Sirada:
+  - Dinamik dogrulama:  cd verify && docker compose up -d && ./install-plugin.sh <slug>
+                        python dast.py --id <id> --plugins-root "$DL_DIR" --run
+  - Yeni kural uret:    python mine_cve.py --slug <slug> --auto
+  - N-day tara:         python ndiff.py --slug <slug> --auto --ai
+  - Rapor:              python report.py --id <id> --ai
+TIP
