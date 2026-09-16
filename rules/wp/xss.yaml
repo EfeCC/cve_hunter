@@ -1,0 +1,35 @@
+rules:
+  - id: wp-reflected-xss
+    languages: [php]
+    severity: ERROR
+    mode: taint
+    message: >
+      Kullanici girdisi escape edilmeden ciktiya (echo/print) yaziliyor -
+      olasi reflected/stored XSS.
+    metadata:
+      category: security
+      cwe: "CWE-79: Cross-site Scripting"
+    pattern-sources:
+      - pattern: $_GET
+      - pattern: $_POST
+      - pattern: $_REQUEST
+      - pattern: $_COOKIE
+      - pattern: $_SERVER['REQUEST_URI']
+    pattern-sanitizers:
+      - pattern: esc_html(...)
+      - pattern: esc_attr(...)
+      - pattern: esc_url(...)
+      - pattern: esc_textarea(...)
+      - pattern: sanitize_text_field(...)
+      - pattern: wp_kses(...)
+      - pattern: wp_kses_post(...)
+      - pattern: intval(...)
+      - pattern: absint(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: "echo $SINK;"
+              - pattern: "echo $SINK, ...;"
+              - pattern: "print($SINK)"
+              - pattern: "printf(...)"
+              - pattern: "print_r($SINK)"

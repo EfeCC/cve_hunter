@@ -1,0 +1,47 @@
+# Lokal WordPress test ortami - hedef eklentiyi kurup PoC dogrulamak icin.
+# Kalirim:  cd verify && docker compose up -d
+# WP:       http://localhost:8080  (kurulum sihirbazini tamamla veya wpcli servisini kullan)
+# NOT: Bu ortam SADECE lokal/izole test icindir. Disari acma.
+services:
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: wproot
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wp
+      MYSQL_PASSWORD: wp
+    volumes:
+      - ./db-data:/var/lib/mysql
+
+  wordpress:
+    image: wordpress:php8.2-apache
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "8080:80"
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wp
+      WORDPRESS_DB_PASSWORD: wp
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DEBUG: "1"
+    volumes:
+      - ./wp-data:/var/www/html
+
+  # wp-cli: eklenti kurma/aktiflestirme ve test kullanicisi acma icin
+  wpcli:
+    image: wordpress:cli-php8.2
+    depends_on:
+      - wordpress
+      - db
+    user: "33:33"
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wp
+      WORDPRESS_DB_PASSWORD: wp
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - ./wp-data:/var/www/html
+    entrypoint: ["tail", "-f", "/dev/null"]

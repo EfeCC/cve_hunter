@@ -1,0 +1,21 @@
+rules:
+  - id: wp-php-object-injection
+    languages: [php]
+    severity: ERROR
+    mode: taint
+    message: >
+      Kullanici girdisi unserialize()'e ulasiyor - PHP Object Injection.
+      WordPress'te maybe_unserialize da ayni riski tasir.
+    metadata:
+      category: security
+      cwe: "CWE-502: Deserialization of Untrusted Data"
+    pattern-sources:
+      - pattern: $_GET
+      - pattern: $_POST
+      - pattern: $_REQUEST
+      - pattern: $_COOKIE
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: unserialize(...)
+              - pattern: maybe_unserialize(...)

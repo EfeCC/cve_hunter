@@ -1,0 +1,16 @@
+# secrets & config
+config.ini
+.env
+# base-repo artifacts
+output.csv
+__pycache__
+plugins
+releases
+create_release.sh
+# our additions
+*.pyc
+semgrep_output.json
+reports/
+verify/wp-data/
+verify/db-data/
+triage_cache/

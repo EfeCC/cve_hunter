@@ -1,0 +1,31 @@
+rules:
+  - id: wp-lfi-path-traversal
+    languages: [php]
+    severity: ERROR
+    mode: taint
+    message: >
+      Kullanici girdisi dosya erisim fonksiyonuna ulasiyor -
+      olasi LFI / path traversal / RFI.
+    metadata:
+      category: security
+      cwe: "CWE-22: Path Traversal"
+    pattern-sources:
+      - pattern: $_GET
+      - pattern: $_POST
+      - pattern: $_REQUEST
+      - pattern: $_COOKIE
+    pattern-sanitizers:
+      - pattern: sanitize_file_name(...)
+      - pattern: basename(...)
+      - pattern: realpath(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: include(...)
+              - pattern: include_once(...)
+              - pattern: require(...)
+              - pattern: require_once(...)
+              - pattern: fopen(...)
+              - pattern: file_get_contents(...)
+              - pattern: readfile(...)
+              - pattern: unlink(...)

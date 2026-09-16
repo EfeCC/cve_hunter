@@ -1,0 +1,33 @@
+rules:
+  - id: wp-wpdb-sqli
+    languages: [php]
+    severity: ERROR
+    mode: taint
+    message: >
+      Kullanici girdisi $wpdb sorgusuna prepare()/esc_sql() olmadan ulasiyor -
+      olasi SQL injection. Unauth erisilebilirse yuksek etkili CVE.
+    metadata:
+      category: security
+      cwe: "CWE-89: SQL Injection"
+      references:
+        - https://developer.wordpress.org/reference/classes/wpdb/prepare/
+    pattern-sources:
+      - pattern: $_GET
+      - pattern: $_POST
+      - pattern: $_REQUEST
+      - pattern: $_COOKIE
+      - pattern: $_SERVER
+    pattern-sanitizers:
+      - pattern: $wpdb->prepare(...)
+      - pattern: intval(...)
+      - pattern: absint(...)
+      - pattern: (int)$X
+      - pattern: esc_sql(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $wpdb->query(...)
+              - pattern: $wpdb->get_results(...)
+              - pattern: $wpdb->get_row(...)
+              - pattern: $wpdb->get_var(...)
+              - pattern: $wpdb->get_col(...)

@@ -1,0 +1,46 @@
+rules:
+  - id: wp-rest-route-missing-permission-callback
+    languages: [php]
+    severity: WARNING
+    message: >
+      register_rest_route icin permission_callback tanimlanmamis - broken access
+      control. WP 5.5+ uyari verir ama endpoint yine de acik kalabilir.
+    metadata:
+      category: security
+      cwe: "CWE-862: Missing Authorization"
+    patterns:
+      - pattern-either:
+          - pattern: register_rest_route($NS, $ROUTE, array(...))
+          - pattern: register_rest_route($NS, $ROUTE, [...])
+      - pattern-not: register_rest_route($NS, $ROUTE, array(..., "permission_callback" => $CB, ...))
+      - pattern-not: register_rest_route($NS, $ROUTE, [..., "permission_callback" => $CB, ...])
+
+  - id: wp-rest-route-public-permission-callback
+    languages: [php]
+    severity: WARNING
+    message: >
+      register_rest_route permission_callback => __return_true: endpoint tamamen
+      public. Hassas islem yapiyorsa (veri okuma/yazma) IDOR/yetkisiz erisim.
+    metadata:
+      category: security
+      cwe: "CWE-862: Missing Authorization"
+    patterns:
+      - pattern-either:
+          - pattern: register_rest_route(..., array(..., "permission_callback" => "__return_true", ...))
+          - pattern: register_rest_route(..., [..., "permission_callback" => "__return_true", ...])
+
+  - id: wp-ajax-nopriv-handler
+    languages: [php]
+    severity: INFO
+    message: >
+      wp_ajax_nopriv_ ile unauthenticated AJAX endpoint tanimlanmis. Bu unauth
+      saldiri yuzeyi - handler icinde nonce (check_ajax_referer) ve yetki
+      kontrolu var mi manuel dogrula.
+    metadata:
+      category: security
+      cwe: "CWE-862: Missing Authorization"
+    patterns:
+      - pattern: add_action($HOOK, ...)
+      - metavariable-regex:
+          metavariable: $HOOK
+          regex: (?i)^["']wp_ajax_nopriv_

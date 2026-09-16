@@ -1,0 +1,35 @@
+rules:
+  - id: wp-file-upload-handler
+    languages: [php]
+    severity: WARNING
+    message: >
+      Dosya yukleme fonksiyonu kullanilmis. Cagiran yolda current_user_can /
+      nonce kontrolu ve uzanti/tip whitelist'i var mi dogrula - arbitrary file
+      upload -> RCE potansiyeli.
+    metadata:
+      category: security
+      cwe: "CWE-434: Unrestricted Upload of File with Dangerous Type"
+    pattern-either:
+      - pattern: wp_handle_upload(...)
+      - pattern: move_uploaded_file(...)
+      - pattern: $wp_filesystem->put_contents(...)
+
+  - id: wp-option-update-from-input
+    languages: [php]
+    severity: WARNING
+    mode: taint
+    message: >
+      Kullanici girdisi dogrudan update_option/delete_option'a ulasiyor -
+      yetki kontrolu yoksa ayar manipulasyonu / privilege escalation.
+    metadata:
+      category: security
+      cwe: "CWE-862: Missing Authorization"
+    pattern-sources:
+      - pattern: $_GET
+      - pattern: $_POST
+      - pattern: $_REQUEST
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: update_option(...)
+              - pattern: delete_option(...)

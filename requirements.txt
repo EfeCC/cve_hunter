@@ -1,0 +1,5 @@
+mysql-connector-python
+tqdm
+semgrep
+requests
+anthropic>=1.0.0
