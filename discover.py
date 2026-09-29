@@ -41,25 +41,25 @@ Her bulgu icin: gercekten somurulebilir mi ve hangi yetki gerekir (unauth ipucu:
 wp_ajax_nopriv_, permission_callback yoklugu/__return_true) degerlendir. Uydurma;
 sadece dosyadaki koda dayan. Zayif/teorik seyleri dahil etme.
 
-ERISILEBILIRLIK (cross-file) - EN COK YAPILAN HATA: Bir handler'da cap/nonce
-GORMEMEK, korumasiz oldugu ANLAMINA GELMEZ. Koruma cogu zaman BASKA katmanda olur
-ve sana verilen dosyada GORUNMEZ:
-1) Admin-menu gate: handler bir add_menu_page/add_submenu_page callback'i ise
-   yetki o registration'daki capability argumaniyla (or. 'manage_options')
-   ZORLANIR; ayrica ortak bir dispatcher/Controller::auth() gate'i olabilir.
-2) Nonce kaynagi: bir nonce yalnizca yuksek-yetkili sayfada (or. manage_options
-   admin sayfasi) uretiliyorsa, dusuk-yetkili kullanici o nonce'u ALAMAZ ->
-   pratikte o yetki seviyesinde gate'lidir. Bir handler sadece nonce kontrol edip
-   cap kontrol etmese bile, nonce nerede basiliyorsa gercek yetki seviyesi odur.
-3) wp_ajax_ (nopriv YOK) = en az giris yapmis kullanici gerekir.
-4) Source-sanitize: 'sink' escape'siz gorunse bile SOURCE'un yakalandigi yerde
-   sanitize_text_field/wp_kses/esc_* olabilir -> stored XSS'i source'u gormeden
-   yuksek guvenle iddia etme.
-5) Guvenlik toggle'lari (or. *_FORCE_*/*_STRICT_* sabitleri) cogunlukla guvenli
-   tarafta (true) default'lanir; degisken adindan "default false" varsayma.
-Bu gate'ler dosyada GORUNMUYORSA: auth_context'i EMIN olmadan 'unauth'/'subscriber'
-VERME -> 'unknown' kullan; confidence <= 0.5 tut; reasoning'de ACIKCA
-"erisilebilirlik dogrulanmali: <hangi dosya/registration/nonce kaynagi>" yaz.
+ERISILEBILIRLIK (cross-file) - EN KRITIK ADIM: Bir handler'da cap/nonce GORMEMEK,
+korumasiz oldugu ANLAMINA GELMEZ; koruma genelde BASKA dosyadadir. Prompt'ta sana
+DOSYAYLA BIRLIKTE bir "PLUGIN GATE HARITASI" verilir (tum dosyalardan cikarilmis
+AJAX/REST/admin-menu/nonce kayitlari). auth_context ve confidence'i MUTLAKA bu
+haritayla capraz kontrol ederek belirle:
+1) Handler bir wp_ajax_ action'ina baglıysa: haritada 'AJAX nopriv' altinda mi
+   (UNAUTH) yoksa 'AJAX auth-only' altinda mi (en az giris gerekir)?
+2) Handler bir add_(sub)menu_page callback'i ise: haritadaki o satirdaki capability
+   argumani (or. 'manage_options') GERCEK gate'tir -> is_admin() yetki kontrolu DEGIL.
+3) Handler sadece nonce dogruluyorsa (cap yok): o nonce action'i haritada NEREDE
+   uretiliyor? Nonce yalnizca yuksek-yetkili sayfada (manage_options admin sayfasi)
+   basiliyorsa dusuk-yetkili kullanici o nonce'u ALAMAZ -> gercek yetki = o sayfanin
+   yetkisi. Yani "cap yok" tek basina unauth/subscriber DEMEK DEGILDIR.
+4) REST route'ta permission_callback '__return_true' veya yoksa UNAUTH; varsa callback'e gore.
+5) Sink escape'siz gorunse bile SOURCE'ta sanitize_text_field/wp_kses/esc_* olabilir;
+   ve *_FORCE_*/*_STRICT_* gibi guvenlik sabitleri genelde TRUE default'lanir
+   (degisken adindan "default false" varsayma).
+Haritada da netlesmeyen durumda: auth_context='unknown', confidence <= 0.5 ver ve
+reasoning'de neyin dogrulanmasi gerektigini yaz.
 
 CIKTI: SADECE bir JSON DIZISI dondur, baska metin yok. Bos ise []. Her eleman:
 {"line":<int>,"vuln_class":"...","auth_context":"unauth|subscriber|admin|unknown",
@@ -99,6 +99,74 @@ def candidate_files(plugin_dir, max_files):
     return [p for _, p in scored[:max_files]]
 
 
+# --- plugin geneli GATE HARITASI (cross-file reachability icin) -------------
+_AJAX_RE = re.compile(r"""add_action\(\s*['"]wp_ajax_(nopriv_)?([\w\-]+)['"]""")
+_ADMINPOST_RE = re.compile(r"""add_action\(\s*['"]admin_post_(nopriv_)?([\w\-]+)['"]""")
+_NONCE_RE = re.compile(r"""wp_(?:create_nonce|nonce_field)\(\s*['"]([^'"]+)['"]""")
+_SHORTCODE_RE = re.compile(r"""add_shortcode\(\s*['"]([^'"]+)['"]""")
+
+
+def _rel(php, plugins_root):
+    sp = str(php)
+    return str(php.relative_to(plugins_root)) if sp.startswith(str(plugins_root)) else sp
+
+
+def plugin_gate_map(plugin_dir, plugins_root, max_chars=6000, per_section=25):
+    """Eklentinin TUM PHP dosyalarindan giris-noktasi + gate kayitlarini cikarir.
+    Boylece AI, incelenen dosyadaki bir handler'in gercek yetki seviyesini
+    (nopriv? menu capability? nonce nerede uretiliyor?) capraz kontrol edebilir."""
+    ajax_nopriv, ajax_auth, rest, adminpost, menu, nonce, shortcode = (
+        [], [], [], [], [], [], [])
+    for php in Path(plugin_dir).rglob("*.php"):
+        try:
+            text = php.read_text("utf-8", "replace")
+        except Exception:  # noqa: BLE001
+            continue
+        rel = _rel(php, plugins_root)
+        for i, ln in enumerate(text.splitlines(), 1):
+            s = ln.strip()
+            if not s:
+                continue
+            m = _AJAX_RE.search(s)
+            if m:
+                (ajax_nopriv if m.group(1) else ajax_auth).append(f"{rel}:{i}  {s[:160]}")
+                continue
+            if _ADMINPOST_RE.search(s):
+                adminpost.append(f"{rel}:{i}  {s[:160]}")
+                continue
+            if "register_rest_route" in s or "permission_callback" in s:
+                rest.append(f"{rel}:{i}  {s[:160]}")
+                continue
+            if "add_menu_page" in s or "add_submenu_page" in s:
+                menu.append(f"{rel}:{i}  {s[:190]}")
+                continue
+            if _NONCE_RE.search(s):
+                nonce.append(f"{rel}:{i}  {s[:160]}")
+                continue
+            if _SHORTCODE_RE.search(s):
+                shortcode.append(f"{rel}:{i}  {s[:120]}")
+    sections = [
+        ("AJAX nopriv (UNAUTH erisim)", ajax_nopriv),
+        ("AJAX auth-only (en az giris gerekir)", ajax_auth),
+        ("REST route / permission_callback (__return_true = UNAUTH)", rest),
+        ("admin_post", adminpost),
+        ("ADMIN MENU (callback BU capability ile gate'li)", menu),
+        ("NONCE URETIM (bu nonce'u ancak bu sayfayi gorebilen kullanici alir)", nonce),
+        ("SHORTCODE", shortcode),
+    ]
+    out = ["=== PLUGIN GATE HARITASI (cross-file, TUM dosyalardan) ==="]
+    for title, items in sections:
+        if not items:
+            continue
+        seen = list(dict.fromkeys(items))[:per_section]
+        out.append(f"[{title}]")
+        out.extend("  " + x for x in seen)
+    body = "\n".join(out)
+    if len(body) > max_chars:
+        body = body[:max_chars] + "\n... [gate haritasi kirpildi] ..."
+    return body
+
+
 def ask(engine, ctx, prompt):
     if engine == "api":
         resp = ctx["client"].messages.create(
@@ -120,6 +188,8 @@ def main():
                         help="Eklenti basina en cok kac dosya incelensin")
     parser.add_argument("--max-chars", type=int, default=28000,
                         help="Dosya basina gonderilecek en fazla karakter")
+    parser.add_argument("--gate-chars", type=int, default=6000,
+                        help="Plugin gate haritasi icin en fazla karakter")
     parser.add_argument("--limit-plugins", type=int, default=None)
     parser.add_argument("--min-confidence", type=float, default=0.5)
     parser.add_argument("--model", default=None)
@@ -148,12 +218,17 @@ def main():
     found = 0
     for plugin in tqdm(plugins, desc="AI kesif"):
         pdir = plugins_dir / plugin
+        # Gate haritasi eklenti basina BIR KEZ cikarilir, her dosya prompt'una eklenir.
+        gate_map = plugin_gate_map(pdir, args.plugins_root, args.gate_chars)
         for php in candidate_files(pdir, args.max_files):
             rel = str(php.relative_to(args.plugins_root)) if str(php).startswith(
                 str(args.plugins_root)) else str(php)
             prompt = (f"Eklenti: {plugin}\nDosya: {rel}\n\n"
+                      f"{gate_map}\n\n"
                       f"--- DOSYA ---\n{numbered(php, args.max_chars)}\n--- SON ---\n\n"
-                      "Saldiri yuzeyindeki gercek zafiyetleri JSON dizisi olarak dondur.")
+                      "Saldiri yuzeyindeki gercek zafiyetleri JSON dizisi olarak dondur. "
+                      "auth_context ve confidence'i yukaridaki GATE HARITASIYLA capraz "
+                      "kontrol ederek belirle.")
             try:
                 items = extract_json_array(ask(args.engine, ctx, prompt))
             except Exception as e:
