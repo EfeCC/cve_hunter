@@ -191,6 +191,8 @@ def main():
     parser.add_argument("--gate-chars", type=int, default=6000,
                         help="Plugin gate haritasi icin en fazla karakter")
     parser.add_argument("--limit-plugins", type=int, default=None)
+    parser.add_argument("--only", default=None,
+                        help="Sadece bu slug'i tara (hizli A/B / hedefli kesif)")
     parser.add_argument("--min-confidence", type=float, default=0.5)
     parser.add_argument("--model", default=None)
     parser.add_argument("--verbose", action="store_true")
@@ -212,6 +214,8 @@ def main():
 
     plugins_dir = Path(args.plugins_root) / "plugins"
     plugins = sorted(p.name for p in plugins_dir.iterdir() if p.is_dir())
+    if args.only:
+        plugins = [p for p in plugins if p == args.only]
     if args.limit_plugins:
         plugins = plugins[:args.limit_plugins]
 
