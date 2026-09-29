@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>cve_hunter panel</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <h1>🛡️ cve_hunter <span class="muted">WP eklenti CVE avı paneli</span></h1>
+    <nav>
+      <button class="tab active" data-tab="plugins">Eklentiler</button>
+      <button class="tab" data-tab="pipeline">Boru Hattı</button>
+      <button class="tab" data-tab="findings">Bulgular</button>
+    </nav>
+  </header>
+
+  <!-- ============ EKLENTILER ============ -->
+  <section id="plugins" class="panel active">
+    <div class="row">
+      <input id="q" type="search" placeholder="Eklenti ara (wordpress.org)… örn: booking, upload, import">
+      <select id="browse">
+        <option value="popular">Popüler</option>
+        <option value="new">Yeni</option>
+        <option value="updated">Son güncellenen</option>
+      </select>
+      <button id="searchBtn">Ara</button>
+    </div>
+    <p class="hint">💡 Verimli av: küçük–orta kurulum (5k–80k), eski güncelleme, tek geliştirici. Seç → İndir → Boru Hattı sekmesi.</p>
+    <div id="pluginResults" class="cards"></div>
+
+    <h3>İndirilmiş eklentiler</h3>
+    <div id="installed" class="tablewrap"></div>
+  </section>
+
+  <!-- ============ BORU HATTI ============ -->
+  <section id="pipeline" class="panel">
+    <div class="actions">
+      <button id="btnScan" class="big">① Statik Tarama <small>(Semgrep — tüm indirilenler)</small></button>
+      <div class="actgroup">
+        <button id="btnDiscover" class="big">② AI Keşif <small>(discover — nopriv/IDOR/auth)</small></button>
+        <input id="discLimit" type="number" min="1" placeholder="limit (opsiyonel)">
+      </div>
+      <div class="actgroup">
+        <button id="btnTriage" class="big">③ AI Triyaj <small>(triage — verdict/skor)</small></button>
+        <input id="triLimit" type="number" min="1" placeholder="limit (opsiyonel)">
+      </div>
+    </div>
+    <p class="hint">⏱️ AI keşif/triyaj uzun sürebilir (büyük eklentide dakikalarca). Job arka planda çalışır; aşağıdan canlı log izle.</p>
+
+    <div class="split">
+      <div>
+        <h3>Job'lar</h3>
+        <div id="jobList" class="tablewrap"></div>
+      </div>
+      <div>
+        <h3>Canlı log <span id="logLabel" class="muted"></span></h3>
+        <pre id="logView" class="log">Bir job seç…</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ BULGULAR ============ -->
+  <section id="findings" class="panel">
+    <div class="row">
+      <label>Verdict
+        <select id="fVerdict">
+          <option value="real,likely">real + likely</option>
+          <option value="real">real</option>
+          <option value="likely">likely</option>
+          <option value="false_positive">false_positive</option>
+          <option value="all">hepsi</option>
+        </select>
+      </label>
+      <label>Yetki
+        <select id="fAuth">
+          <option value="unauth,subscriber">unauth + subscriber</option>
+          <option value="unauth">unauth</option>
+          <option value="subscriber">subscriber</option>
+          <option value="all">hepsi</option>
+        </select>
+      </label>
+      <button id="fRefresh">Yenile</button>
+    </div>
+    <div class="split">
+      <div id="findingList" class="tablewrap"></div>
+      <div id="findingDetail" class="detail"><p class="muted">Bir bulgu seç…</p></div>
+    </div>
+  </section>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

@@ -84,7 +84,17 @@ oldugunu degerlendirmek. Ozellikle sunlara dikkat et:
   false_positive veya dusuk oncelik.
 - Emin degilsen 'likely' + orta guven ver; asiri iyimser olma.
 
-Sadece verilen kanita dayan; kodda gormedigin sanitizasyonu varsayma.
+ERISILEBILIRLIK UYARISI (en cok yapilan FP hatasi): Handler'da cap/nonce gormemek
+FP olmadigini KANITLAMAZ. Yetki cogu zaman ROUTING katmanindadir ve verilen
+baglamda gorunmez: (a) add_menu_page/add_submenu_page capability argumani (or.
+'manage_options'), (b) ortak dispatcher/Controller::auth() gate'i, (c) nonce'un
+yalnizca yuksek-yetkili sayfada uretilmesi -> dusuk-yetkili o nonce'u ALAMAZ.
+Bir handler sadece nonce kontrol edip cap kontrol etmiyorsa, gercek yetki seviyesi
+= o nonce'un basildigi sayfanin yetki seviyesidir. Ayrica: sink escape'siz olsa
+bile source-tarafta sanitize_text_field/wp_kses olabilir; ve *_FORCE_* gibi
+guvenlik sabitleri genelde true default'lanir. Bunlar baglamda gorunmuyorsa
+auth_context='unknown', confidence <= 0.5 ver ve reasoning'de neyin (hangi dosya/
+registration/nonce kaynagi) dogrulanmasi gerektigini yaz.
 CIKTI: SADECE tek bir JSON nesnesi dondur, baska hicbir metin/markdown yazma. Sema:
 {"verdict":"real|likely|false_positive","vuln_class":"...","auth_context":"unauth|subscriber|admin|unknown","exploitability":"easy|medium|hard","confidence":0.0,"reasoning":"..."}"""
 

@@ -41,6 +41,26 @@ Her bulgu icin: gercekten somurulebilir mi ve hangi yetki gerekir (unauth ipucu:
 wp_ajax_nopriv_, permission_callback yoklugu/__return_true) degerlendir. Uydurma;
 sadece dosyadaki koda dayan. Zayif/teorik seyleri dahil etme.
 
+ERISILEBILIRLIK (cross-file) - EN COK YAPILAN HATA: Bir handler'da cap/nonce
+GORMEMEK, korumasiz oldugu ANLAMINA GELMEZ. Koruma cogu zaman BASKA katmanda olur
+ve sana verilen dosyada GORUNMEZ:
+1) Admin-menu gate: handler bir add_menu_page/add_submenu_page callback'i ise
+   yetki o registration'daki capability argumaniyla (or. 'manage_options')
+   ZORLANIR; ayrica ortak bir dispatcher/Controller::auth() gate'i olabilir.
+2) Nonce kaynagi: bir nonce yalnizca yuksek-yetkili sayfada (or. manage_options
+   admin sayfasi) uretiliyorsa, dusuk-yetkili kullanici o nonce'u ALAMAZ ->
+   pratikte o yetki seviyesinde gate'lidir. Bir handler sadece nonce kontrol edip
+   cap kontrol etmese bile, nonce nerede basiliyorsa gercek yetki seviyesi odur.
+3) wp_ajax_ (nopriv YOK) = en az giris yapmis kullanici gerekir.
+4) Source-sanitize: 'sink' escape'siz gorunse bile SOURCE'un yakalandigi yerde
+   sanitize_text_field/wp_kses/esc_* olabilir -> stored XSS'i source'u gormeden
+   yuksek guvenle iddia etme.
+5) Guvenlik toggle'lari (or. *_FORCE_*/*_STRICT_* sabitleri) cogunlukla guvenli
+   tarafta (true) default'lanir; degisken adindan "default false" varsayma.
+Bu gate'ler dosyada GORUNMUYORSA: auth_context'i EMIN olmadan 'unauth'/'subscriber'
+VERME -> 'unknown' kullan; confidence <= 0.5 tut; reasoning'de ACIKCA
+"erisilebilirlik dogrulanmali: <hangi dosya/registration/nonce kaynagi>" yaz.
+
 CIKTI: SADECE bir JSON DIZISI dondur, baska metin yok. Bos ise []. Her eleman:
 {"line":<int>,"vuln_class":"...","auth_context":"unauth|subscriber|admin|unknown",
 "exploitability":"easy|medium|hard","verdict":"real|likely",
